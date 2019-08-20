@@ -7,6 +7,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
@@ -39,30 +40,35 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     TextView tvgXaxis, tvgYaxis, tvgZaxis, tvXaxis, tvYaxis, tvZaxis, tvlXaxis, tvlYaxis, tvlZaxis, tvgTotal, tvTotal, tvlTotal;
     Button button;
 
-    // 가속도 -> 속도 -> 위치
-    // v1 = (a0 + a1)(t1-t0) / 2        //수치 적분
-    private ArrayList<Float> Acc[][];
-    private ArrayList<Float> Vel[][];
-    private ArrayList<Float> Dis[][];
-
     private LineChart lineChart;
+
+    int count;
+    private int time = 5;
+    private float dt = 0.5f;   // 임시
+    int stepnum = (int)(time / dt);
+//    float[][] Time, Acc, Vel, Loc;
+    float[][] Acc;
+    float[][] Vel = new float[stepnum][3];
+    float[][] Dis = new float[stepnum][3];
+
+    float start_time, end_time;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        tvgXaxis = (TextView) findViewById(R.id.tvgXaxis);
-        tvgYaxis = (TextView) findViewById(R.id.tvgYaxis);
-        tvgZaxis = (TextView) findViewById(R.id.tvgZaxis);
-        tvXaxis = (TextView) findViewById(R.id.tvXaxis);
-        tvYaxis = (TextView) findViewById(R.id.tvYaxis);
-        tvZaxis = (TextView) findViewById(R.id.tvZaxis);
+//        tvgXaxis = (TextView) findViewById(R.id.tvgXaxis);
+//        tvgYaxis = (TextView) findViewById(R.id.tvgYaxis);
+//        tvgZaxis = (TextView) findViewById(R.id.tvgZaxis);
+//        tvXaxis = (TextView) findViewById(R.id.tvXaxis);
+//        tvYaxis = (TextView) findViewById(R.id.tvYaxis);
+//        tvZaxis = (TextView) findViewById(R.id.tvZaxis);
         tvlXaxis = (TextView) findViewById(R.id.tvlXaxis);
         tvlYaxis = (TextView) findViewById(R.id.tvlYaxis);
         tvlZaxis = (TextView) findViewById(R.id.tvlZaxis);
-        tvgTotal = (TextView) findViewById(R.id.tvgTotal);
-        tvTotal = (TextView) findViewById(R.id.tvTotal);
+//        tvgTotal = (TextView) findViewById(R.id.tvgTotal);
+//        tvTotal = (TextView) findViewById(R.id.tvTotal);
         tvlTotal = (TextView) findViewById(R.id.tvlTotal);
         button = (Button) findViewById(R.id.button);
         lineChart = (LineChart) findViewById(R.id.chart);
@@ -71,16 +77,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         accelerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         linearAccelerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 
+        // 기능
         MakeChart(1, 1);
 
+        count = 0;
         button.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View view, MotionEvent motionEvent) {
                 if (motionEvent.getAction() == motionEvent.ACTION_DOWN) {
+//                    start_time = System.currentTimeMillis();
+////                    end_time = start_time + 5000;
                 }
                 if (motionEvent.getAction() == motionEvent.ACTION_UP) {
-                    Toast.makeText(MainActivity.this, "ACTION_UP", Toast.LENGTH_SHORT).show();
-                    updateMarker(5, 4);
                 }
                 return false;
             }
@@ -92,7 +100,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onResume();
         sensorManager.registerListener(this, accelerSensor, SensorManager.SENSOR_DELAY_NORMAL);
         sensorManager.registerListener(this, linearAccelerSensor, SensorManager.SENSOR_DELAY_NORMAL);
-
     }
 
     @Override
@@ -109,27 +116,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             gAccY = event.values[1];
             gAccZ = event.values[2];
 
-            tempX = alpha * tempX + (1 - alpha) * event.values[0];
-            tempY = alpha * tempY + (1 - alpha) * event.values[1];
-            tempZ = alpha * tempZ + (1 - alpha) * event.values[2];
-
-
-            accX = event.values[0] - tempX;
-            accY = event.values[1] - tempY;
-            accZ = event.values[2] - tempZ;
-
-            gTotal = Math.sqrt(Math.pow(gAccX, 2) + Math.pow(gAccY, 2) + Math.pow(gAccZ, 2));
-            total = Math.sqrt(Math.pow(accX, 2) + Math.pow(accY, 2) + Math.pow(accZ, 2));
-
-            tvgXaxis.setText("중력 가속도 X axis : " + String.format("%.2f", gAccX));
-            tvgYaxis.setText("중력 가속도 Y axis : " + String.format("%.2f", gAccY));
-            tvgZaxis.setText("중력 가속도 Z axis : " + String.format("%.2f", gAccZ));
-            tvgTotal.setText("Total Gravity : " + String.format("%.2f", gTotal) + " m/s\u00B2");
-
-            tvXaxis.setText("X axis : " + String.format("%.2f", accX));
-            tvYaxis.setText("Y axis : " + String.format("%.2f", accY));
-            tvZaxis.setText("Z axis : " + String.format("%.2f", accZ));
-            tvTotal.setText("Total Gravity : " + String.format("%.2f", total) + " m/s\u00B2");
+//            tempX = alpha * tempX + (1 - alpha) * event.values[0];
+//            tempY = alpha * tempY + (1 - alpha) * event.values[1];
+//            tempZ = alpha * tempZ + (1 - alpha) * event.values[2];
+//
+//
+//            accX = event.values[0] - tempX;
+//            accY = event.values[1] - tempY;
+//            accZ = event.values[2] - tempZ;
+//
+//            gTotal = Math.sqrt(Math.pow(gAccX, 2) + Math.pow(gAccY, 2) + Math.pow(gAccZ, 2));
+//            total = Math.sqrt(Math.pow(accX, 2) + Math.pow(accY, 2) + Math.pow(accZ, 2));
+//
+//            tvgXaxis.setText("중력 가속도 X axis : " + String.format("%.2f", gAccX));
+//            tvgYaxis.setText("중력 가속도 Y axis : " + String.format("%.2f", gAccY));
+//            tvgZaxis.setText("중력 가속도 Z axis : " + String.format("%.2f", gAccZ));
+//            tvgTotal.setText("Total Gravity : " + String.format("%.2f", gTotal) + " m/s\u00B2");
+//
+//            tvXaxis.setText("X axis : " + String.format("%.2f", accX));
+//            tvYaxis.setText("Y axis : " + String.format("%.2f", accY));
+//            tvZaxis.setText("Z axis : " + String.format("%.2f", accZ));
+//            tvTotal.setText("Total Gravity : " + String.format("%.2f", total) + " m/s\u00B2");
         }
 
         // 가속도 파트 , Acc
@@ -145,8 +152,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             tvlYaxis.setText("선형 Y axis : " + String.format("%.2f", lAccY));
             tvlZaxis.setText("선형 Z axis : " + String.format("%.2f", lAccZ));
             tvlTotal.setText("Total Gravity : " + String.format("%.2f", lTotal) + " m/s\u00B2");
+
+            Acc = new float[5000][3];
+            Acc[count][0] = lAccX;
+            Acc[count][1] = lAccY;
+            Acc[count][2] = lAccZ;
+
+            updateMarker(count, lAccX);
+            count++;
+//            Log.d("초당 센서 갯수 확인용", ""+lAccX);
+            Log.d("Acc배열 확인","count"+count+"  Acc[count]"+Acc[count]+"  Acc[count][0]"+Acc[count][0]+ "   lAccx"+lAccX);
         }
-//            updateMarker(accX,accY);
     }
 
     @Override
@@ -205,25 +221,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private void updateMarker(float addXValue, float addYValue) {
 
         LineData lineData = lineChart.getData();
-        if (lineData != null) {
-            ILineDataSet set = lineData.getDataSetByIndex(0);
+        lineData.addEntry(new Entry(addXValue,addYValue),0);
+        lineData.notifyDataChanged();
 
-//            lineData.addEntry(new Entry(addXValue,addYValue), 0);
-            lineData.addEntry(new Entry(2, 5), 0);
-            lineData.addEntry(new Entry(4, 5), 0);
-            lineData.notifyDataChanged();
+        lineChart.notifyDataSetChanged();
+        lineChart.setVisibleXRangeMaximum(120);
+        lineChart.moveViewToX(lineData.getEntryCount());
 
-            lineChart.notifyDataSetChanged();
-            lineChart.setVisibleXRangeMaximum(120);
-
-            MyMarkerView marker = new MyMarkerView(this, R.layout.markerview);
-            marker.setChartView(lineChart);
-            lineChart.setMarker(marker);
-        }
+        MyMarkerView marker = new MyMarkerView(this, R.layout.markerview);
+        marker.setChartView(lineChart);
+        lineChart.setMarker(marker);
     }
 
-    private float Numerical_Integration(float x, float y, float z) {
-
-        return 0;
+    // 가속도 -> 속도 -> 위치
+    // v1 = (a0 + a1)(t1-t0) / 2
+    private float Numerical_Integration(float val0, float val1, float time0, float time1) {
+            float transform_V =  ((val0 + val1)*(time1 - time0) / 2);
+        return transform_V;
     }
 }
