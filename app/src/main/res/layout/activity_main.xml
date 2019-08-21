@@ -35,7 +35,8 @@
         android:id="@+id/btn_reset"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="그래프 초기화" />
+        android:text="그래프 초기화"
+        />
 
     <Button
         android:id="@+id/btn_capture"

@@ -52,7 +52,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private SensorManager sensorManager;
     private Sensor accelerSensor;
     private Sensor linearAccelerSensor;
+    private Sensor gyroSensor;
     public float lAccX, lAccY, lAccZ;
+    public float GyroX, GyroY, GyroZ;
     TextView tvlXaxis, tvlYaxis, tvlZaxis, tvlTotal;
     Button button, btn_capture, btn_excel,btn_reset;
 
@@ -65,11 +67,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private float dt = 0.5f;   // 임시
     int stepnum = (int) (time / dt);
 
-    float[][] Acc = new float[stepnum][3];
-    float[][] Vel = new float[stepnum][3];
+    float[][] lAcc = new float[stepnum][3];
+    float[][] Gyro = new float[stepnum][3];
     float[][] Loc = new float[stepnum][3];
 
-    boolean isBtnOn = false;
+    boolean isBtnOn = false, isReset = false;
     float FileSaveTime = System.currentTimeMillis()*1000;
     int FileSaveTime_ver = 0;
 
@@ -90,9 +92,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btn_reset = (Button) findViewById(R.id.btn_reset);
         lineChart = (LineChart) findViewById(R.id.chart);
 
+
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         linearAccelerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+        gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 
         checkPermission();
         MakeChart(0,0);
@@ -136,7 +140,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btn_reset.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                lineChart.clearValues();
+                lineChart.invalidate();
+                lineChart.clear();
+                lineDataSet.clear();
+                lineData.clearValues();
+                count = 0;
                 MakeChart(0,0);
             }
         });
@@ -147,6 +155,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onResume();
         sensorManager.registerListener(this, accelerSensor, SensorManager.SENSOR_DELAY_NORMAL);
         sensorManager.registerListener(this, linearAccelerSensor, SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(this, gyroSensor, SensorManager.SENSOR_DELAY_GAME);
     }
 
     @Override
@@ -169,10 +178,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             tvlYaxis.setText("선형 Y axis : " + String.format("%f", lAccY));
             tvlZaxis.setText("선형 Z axis : " + String.format("%f", lAccZ));
 
-            Acc[count] = new float[]{lAccX, lAccY, lAccZ};
+            lAcc[count] = new float[]{lAccX, lAccY, lAccZ};
 
             count++;
             updateMarker(count, lAccX);
+        }
+
+        if(event.sensor == gyroSensor){
+            GyroX = event.values[0];
+            GyroY = event.values[1];
+            GyroZ = event.values[2];
+
+            Gyro[count] = new float[]{GyroX, GyroY, GyroZ};
         }
     }
 
@@ -251,7 +268,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
-    private void saveExcel(){
+    private void saveExcel() {
         Workbook workbook = new HSSFWorkbook();
 
         Sheet sheet = workbook.createSheet(); // 새로운 시트 생성
@@ -259,21 +276,36 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         Row row = sheet.createRow(0); // 새로운 행 생성
         Cell cell;
 
-        cell = row.createCell(0); // 1번 셀 생성
-        cell.setCellValue("AccX"); // 1번 셀 값 입력
-        cell = row.createCell(1); // 2번 셀 생성
-        cell.setCellValue("AccY"); // 2번 셀 값 입력
-        cell = row.createCell(2); // 3번 셀 생성
-        cell.setCellValue("AccZ"); // 3번 셀 값 입력
+        String[] cellString = {"AccX", "AccY", "AccZ", "", "GyroX", "GyroY", "GyroZ"};
+
+        for (int i = 0; i < 7; i++){
+            cell = row.createCell(i);
+            cell.setCellValue(cellString[i]);
+        }
 
         for(int i = 0; i < count ; i++){ // 데이터 엑셀에 입력
             row = sheet.createRow(i + 1);
+
             cell = row.createCell(0);
-            cell.setCellValue(Acc[i][0]);
+            cell.setCellValue(Gyro[i][0]);
+
             cell = row.createCell(1);
-            cell.setCellValue(Acc[i][1]);
+            cell.setCellValue(Gyro[i][1]);
+
             cell = row.createCell(2);
-            cell.setCellValue(Acc[i][2]);
+            cell.setCellValue(Gyro[i][2]);
+
+            //공백
+            cell = row.createCell(3);
+
+            cell = row.createCell(4);
+            cell.setCellValue(lAcc[i][0]);
+
+            cell = row.createCell(5);
+            cell.setCellValue(lAcc[i][1]);
+
+            cell = row.createCell(6);
+            cell.setCellValue(lAcc[i][2]);
         }
 
         File csvFile = new File(FilePath, FileSaveTime+"_"+FileSaveTime_ver+"_csv.csv");
