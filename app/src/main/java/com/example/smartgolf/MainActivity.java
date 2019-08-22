@@ -27,9 +27,12 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.Writer;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -64,16 +67,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     int count;
     private int time = 5000;
-    private float dt = 0.5f;   // 임시
-    int stepnum = (int) (time / dt);
 
-    float[][] lAcc = new float[stepnum][3];
-    float[][] Gyro = new float[stepnum][3];
-    float[][] Loc = new float[stepnum][3];
+    float[][] lAcc = new float[time][3];
+    float[][] Gyro = new float[time][3];
+    float[] SensorTime = new float[time];
 
-    boolean isBtnOn = false, isReset = false;
+    boolean isBtnOn = false;
     float FileSaveTime = System.currentTimeMillis()*1000;
+
     int FileSaveTime_ver = 0;
+
+    float pitch;
+    float roll;
+    float yaw;
 
     File FilePath = new File(Environment.getExternalStorageDirectory() + "/Download");
 
@@ -133,7 +139,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btn_excel.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                saveExcel();
+                __makeCsvOrTxtFile();
             }
         });
 
@@ -166,36 +172,61 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        // 가속도 파트 , Acc
-        if (event.sensor == linearAccelerSensor && isBtnOn == true) {
-            //exclude gravity
-            lAccX = event.values[0];
-            lAccY = event.values[1];
-            lAccZ = event.values[2];
+//        // 가속도 파트 , Acc
+//        if (event.sensor == linearAccelerSensor && isBtnOn == true) {
+//            //exclude gravity
+//            lAccX = event.values[0];
+//            lAccY = event.values[1];
+//            lAccZ = event.values[2];
+//
+//            tvlXaxis.setText("선형 X axis : " + String.format("%f", lAccX));
+//            tvlYaxis.setText("선형 Y axis : " + String.format("%f", lAccY));
+//            tvlZaxis.setText("선형 Z axis : " + String.format("%f", lAccZ));
+//
+//            lAcc[count] = new float[]{lAccX, lAccY, lAccZ};
+//
+//            count++;
+//            updateMarker(count, lAccX);
+//        }
 
-            Log.d("lAccX", "" + lAccX);
-            tvlXaxis.setText("선형 X axis : " + String.format("%f", lAccX));
-            tvlYaxis.setText("선형 Y axis : " + String.format("%f", lAccY));
-            tvlZaxis.setText("선형 Z axis : " + String.format("%f", lAccZ));
-
-            lAcc[count] = new float[]{lAccX, lAccY, lAccZ};
-
-            count++;
-            updateMarker(count, lAccX);
-        }
-
-        if(event.sensor == gyroSensor){
+        if(event.sensor == gyroSensor && isBtnOn == true){
             GyroX = event.values[0];
             GyroY = event.values[1];
             GyroZ = event.values[2];
 
+            // nanoTime = 1/1000000
+            SensorTime[count] = System.nanoTime();
+
             Gyro[count] = new float[]{GyroX, GyroY, GyroZ};
+
+            count++;
+            updateMarker(count, GyroX);
         }
     }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
 
+    }
+
+    public void Filtering (){
+        // angle 단순 계산
+//        pitch += (GyroX) * DT;
+//        roll += (GyroY) * DT;
+//        yaw += (GyroZ) * DT;
+
+        // Filtering
+        double forceMagnitude = Math.abs(lAccX) + Math.abs(lAccY) + Math.abs(lAccZ);
+        if(forceMagnitude > 4.9 && forceMagnitude < 19.6){
+            float pitchAcc = (float) (Math.atan2(lAccY , lAccZ) * 180 / (Math.PI));
+            pitch = (float) (pitch * 0.98 + pitchAcc * 0.02);
+
+            float rollAcc = (float) (Math.atan2(lAccX , lAccZ) * 180 / (Math.PI));
+            roll = (float) (pitch * 0.98 + rollAcc * 0.02);
+
+            float yawAcc = (float) (Math.atan2(lAccX , lAccY) * 180 / (Math.PI));
+            yaw = (float) (pitch * 0.98 + yawAcc * 0.02);
+        }
     }
 
 
@@ -268,55 +299,55 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
-    private void saveExcel() {
-        Workbook workbook = new HSSFWorkbook();
+    //csv또는 일반 text만들기 내부 메소드
+    private boolean __makeCsvOrTxtFile(String[]... headers){
+        PrintWriter pw = null;
+        StringBuilder sb = null;
+        try {
+            pw = new PrintWriter(new File(FilePath, "test.csv"));
 
-        Sheet sheet = workbook.createSheet(); // 새로운 시트 생성
+            String[] cellString = {"AccX", "AccY", "AccZ", "Time"};
 
-        Row row = sheet.createRow(0); // 새로운 행 생성
-        Cell cell;
+            StringBuffer csvHeader = new StringBuffer("");
+            StringBuffer csvData = new StringBuffer("");
+            for(int i=0; i<cellString.length; i++) {
+                csvHeader.append(cellString[i]);
+                csvHeader.append(',');
+            }
+            csvHeader.append('\n');
 
-        String[] cellString = {"AccX", "AccY", "AccZ", "", "GyroX", "GyroY", "GyroZ"};
+            // write header
+            pw.write(csvHeader.toString());
 
-        for (int i = 0; i < 7; i++){
-            cell = row.createCell(i);
-            cell.setCellValue(cellString[i]);
-        }
+            // write data
+            for(int i=0; i<count; i++) {
+                for(int j=0; j<3; j++) {
+                    csvData.append(Gyro[i][j]);
+                    csvData.append(',');
+                }
+                for(int k=0; k<1; k++){
+                    if(count<2) {
+                        csvData.append("");
+                        csvData.append(',');
+                    }
+                    else {
+                        csvData.append(SensorTime[count-1]-SensorTime[count-2]);
+                        csvData.append(',');
+                    }
+                }
+                csvData.append('\n');
+            }
 
-        for(int i = 0; i < count ; i++){ // 데이터 엑셀에 입력
-            row = sheet.createRow(i + 1);
+            pw.write(csvData.toString());
+            pw.close();
 
-            cell = row.createCell(0);
-            cell.setCellValue(Gyro[i][0]);
-
-            cell = row.createCell(1);
-            cell.setCellValue(Gyro[i][1]);
-
-            cell = row.createCell(2);
-            cell.setCellValue(Gyro[i][2]);
-
-            //공백
-            cell = row.createCell(3);
-
-            cell = row.createCell(4);
-            cell.setCellValue(lAcc[i][0]);
-
-            cell = row.createCell(5);
-            cell.setCellValue(lAcc[i][1]);
-
-            cell = row.createCell(6);
-            cell.setCellValue(lAcc[i][2]);
-        }
-
-        File csvFile = new File(FilePath, FileSaveTime+"_"+FileSaveTime_ver+"_csv.csv");
-        try{
-            FileOutputStream os = new FileOutputStream(csvFile);
-            workbook.write(os); // 외부 저장소에 엑셀 파일 생성
-            FileSaveTime_ver++;
-        }catch (IOException e){
+        } catch (FileNotFoundException e) {
             e.printStackTrace();
+        } finally{
+            if(pw != null){pw.close();}
+            if(sb != null){sb = null;}
         }
-        Toast.makeText(getApplicationContext(),csvFile.getAbsolutePath()+"에 저장되었습니다", Toast.LENGTH_SHORT).show();
+        return true;
     }
 
     //화면 캡쳐하기
