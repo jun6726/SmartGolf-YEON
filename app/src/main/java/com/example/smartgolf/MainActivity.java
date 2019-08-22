@@ -75,6 +75,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     boolean isBtnOn = false;
     float FileSaveTime = System.currentTimeMillis()*1000;
 
+    float dt;
+
     int FileSaveTime_ver = 0;
 
     float pitch;
@@ -140,6 +142,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             @Override
             public void onClick(View view) {
                 __makeCsvOrTxtFile();
+                lineChart.invalidate();
+                lineChart.clear();
+                lineDataSet.clear();
+                lineData.clearValues();
+                count = 0;
+                MakeChart(0,0);
             }
         });
 
@@ -199,6 +207,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             Gyro[count] = new float[]{GyroX, GyroY, GyroZ};
 
+            if(count>2){
+                dt = SensorTime[count-1]-SensorTime[count-2];
+                for(int i=0; i<10; i++){
+                    Log.d("SensorTime["+i+"]",""+SensorTime[i]);
+                }
+            }
+            Filtering();
+
             count++;
             updateMarker(count, GyroX);
         }
@@ -211,9 +227,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     public void Filtering (){
         // angle 단순 계산
-//        pitch += (GyroX) * DT;
-//        roll += (GyroY) * DT;
-//        yaw += (GyroZ) * DT;
+        pitch += (GyroX) * (dt * Math.pow(10,-9));
+        roll += (GyroY) * (dt * Math.pow(10,-9));
+        yaw += (GyroZ) * (dt * Math.pow(10,-9));
 
         // Filtering
         double forceMagnitude = Math.abs(lAccX) + Math.abs(lAccY) + Math.abs(lAccZ);
@@ -306,7 +322,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         try {
             pw = new PrintWriter(new File(FilePath, "test.csv"));
 
-            String[] cellString = {"AccX", "AccY", "AccZ", "Time"};
+            String[] cellString = {"Time", "AccX", "AccY", "AccZ"};
 
             StringBuffer csvHeader = new StringBuffer("");
             StringBuffer csvData = new StringBuffer("");
@@ -320,24 +336,26 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             pw.write(csvHeader.toString());
 
             // write data
+            csvData.append("Started:");
+            csvData.append('\n');
+
             for(int i=0; i<count; i++) {
-                for(int j=0; j<3; j++) {
-                    csvData.append(Gyro[i][j]);
-                    csvData.append(',');
-                }
                 for(int k=0; k<1; k++){
                     if(count<2) {
                         csvData.append("");
                         csvData.append(',');
                     }
                     else {
-                        csvData.append(SensorTime[count-1]-SensorTime[count-2]);
+                        csvData.append(dt);
                         csvData.append(',');
                     }
                 }
+                for(int j=0; j<3; j++) {
+                    csvData.append(Gyro[i][j]);
+                    csvData.append(',');
+                }
                 csvData.append('\n');
             }
-
             pw.write(csvData.toString());
             pw.close();
 
