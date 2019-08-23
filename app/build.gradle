@@ -17,6 +17,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    aaptOptions{
+        noCompress 'tflite'
+    }
 }
 
 dependencies {
@@ -29,4 +32,6 @@ dependencies {
     //차트
     implementation 'com.github.PhilJay:MPAndroidChart:v3.0.2'
     implementation files('libs/poi-4.0.1.jar')
+    // TensorFlow
+    implementation 'org.tensorflow:tensorflow-lite:+'
 }

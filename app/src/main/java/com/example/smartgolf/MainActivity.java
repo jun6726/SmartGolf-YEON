@@ -2,9 +2,11 @@ package com.example.smartgolf;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.hardware.Sensor;
@@ -27,11 +29,15 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Writer;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.sql.Array;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,11 +50,7 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.tensorflow.lite.Interpreter;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
@@ -59,7 +61,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public float lAccX, lAccY, lAccZ;
     public float GyroX, GyroY, GyroZ;
     TextView tvlXaxis, tvlYaxis, tvlZaxis, tvlTotal;
-    Button button, btn_capture, btn_excel,btn_reset;
+    Button button, btn_capture, btn_excel,btn_reset,btn_tensor;
 
     private LineChart lineChart;
     LineDataSet lineDataSet;
@@ -98,6 +100,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btn_capture = (Button) findViewById(R.id.btn_capture);
         btn_excel = (Button) findViewById(R.id.btn_excel);
         btn_reset = (Button) findViewById(R.id.btn_reset);
+        btn_tensor = (Button) findViewById(R.id.btn_tensor);
         lineChart = (LineChart) findViewById(R.id.chart);
 
 
@@ -162,6 +165,40 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 MakeChart(0,0);
             }
         });
+
+        btn_tensor.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+//                Log.e("Gyro",""+Gyro[1][1]);
+
+                int[] input = new int[]{3};
+                int[] output = new int[]{0};
+
+                Interpreter tfile = getTfliteInterpreter("simple_1.tflite");
+                tfile.run(input, output);
+
+                Toast.makeText(MainActivity.this, ""+output[0], Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private Interpreter getTfliteInterpreter(String modelPath) {
+        try {
+            return new Interpreter(loadModelFile(MainActivity.this, modelPath));
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private MappedByteBuffer loadModelFile(Activity activity, String modelPath) throws IOException {
+        AssetFileDescriptor fileDescriptor = activity.getAssets().openFd(modelPath);
+        FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
+        FileChannel fileChannel = inputStream.getChannel();
+        long startOffset = fileDescriptor.getStartOffset();
+        long declaredLength = fileDescriptor.getDeclaredLength();
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
     }
 
     @Override
@@ -206,12 +243,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             SensorTime[count] = System.nanoTime();
 
             Gyro[count] = new float[]{GyroX, GyroY, GyroZ};
-
+//            Log.e("Gyro",""+Gyro[1][1]);
             if(count>2){
                 dt = SensorTime[count-1]-SensorTime[count-2];
-                for(int i=0; i<10; i++){
-                    Log.d("SensorTime["+i+"]",""+SensorTime[i]);
-                }
+//                for(int i=0; i<10; i++){
+//                    Log.d("SensorTime["+i+"]",""+SensorTime[i]);
+//                }
             }
             Filtering();
 

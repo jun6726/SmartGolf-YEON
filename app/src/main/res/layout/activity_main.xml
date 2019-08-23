@@ -50,6 +50,12 @@
         android:layout_height="wrap_content"
         android:text="엑셀 저장" />
 
+    <Button
+        android:id="@+id/btn_tensor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="텐서플로우" />
+
     <com.github.mikephil.charting.charts.LineChart
         android:id="@+id/chart"
         android:layout_width="match_parent"
