@@ -1,1 +1,1 @@
-include ':app', ':poi-4.0.1'
+include ':app'

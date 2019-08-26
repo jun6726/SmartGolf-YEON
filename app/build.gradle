@@ -20,6 +20,11 @@ android {
     aaptOptions{
         noCompress 'tflite'
     }
+    defaultConfig {
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+    }
 }
 
 dependencies {
@@ -31,7 +36,8 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     //차트
     implementation 'com.github.PhilJay:MPAndroidChart:v3.0.2'
-    implementation files('libs/poi-4.0.1.jar')
     // TensorFlow
-    implementation 'org.tensorflow:tensorflow-lite:+'
+    implementation 'org.tensorflow:tensorflow-lite:0.0.0-nightly'
+    implementation 'org.tensorflow:tensorflow-android:+'
+
 }

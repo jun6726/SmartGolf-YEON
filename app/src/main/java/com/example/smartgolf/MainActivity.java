@@ -17,15 +17,12 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Message;
 import android.util.Log;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
@@ -34,12 +31,10 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.sql.Array;
-import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.github.mikephil.charting.charts.LineChart;
@@ -51,6 +46,7 @@ import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 
 import org.tensorflow.lite.Interpreter;
+import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
@@ -61,7 +57,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public float lAccX, lAccY, lAccZ;
     public float GyroX, GyroY, GyroZ;
     TextView tvlXaxis, tvlYaxis, tvlZaxis, tvlTotal;
-    Button button, btn_capture, btn_excel,btn_reset,btn_tensor;
+    Button button, btn_capture, btn_excel, btn_reset, btn_tensor;
 
     private LineChart lineChart;
     LineDataSet lineDataSet;
@@ -75,7 +71,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     float[] SensorTime = new float[time];
 
     boolean isBtnOn = false;
-    float FileSaveTime = System.currentTimeMillis()*1000;
+    float FileSaveTime = System.currentTimeMillis() * 1000;
 
     float dt;
 
@@ -86,6 +82,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     float yaw;
 
     File FilePath = new File(Environment.getExternalStorageDirectory() + "/Download");
+
+    float[][][] inputGyro = new float[2][140][3];
+    float[] outGyro = new float[]{};
+
+    TensorFlowInferenceInterface inferenceInterface;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -110,18 +111,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 
         checkPermission();
-        MakeChart(0,0);
+        MakeChart(0, 0);
 
         count = 0;
 
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if(isBtnOn == true) {
+                if (isBtnOn == true) {
                     isBtnOn = false;
                     onPause();
-                }
-                else if(isBtnOn == false) {
+                } else if (isBtnOn == false) {
                     isBtnOn = true;
                     onResume();
                 }
@@ -134,7 +134,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 View rootView = getWindow().getDecorView();
 
                 File screenShot = ScreenShot(rootView);
-                if(screenShot!=null){
+                if (screenShot != null) {
                     //갤러리에 추가
                     sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(screenShot)));
                 }
@@ -150,7 +150,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 lineDataSet.clear();
                 lineData.clearValues();
                 count = 0;
-                MakeChart(0,0);
+                MakeChart(0, 0);
             }
         });
 
@@ -162,22 +162,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 lineDataSet.clear();
                 lineData.clearValues();
                 count = 0;
-                MakeChart(0,0);
+                inputGyro = new float[][][]{};
+                outGyro = new float[]{};
+                MakeChart(0, 0);
             }
         });
 
         btn_tensor.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-//                Log.e("Gyro",""+Gyro[1][1]);
-
-                int[] input = new int[]{3};
-                int[] output = new int[]{0};
-
-                Interpreter tfile = getTfliteInterpreter("simple_1.tflite");
-                tfile.run(input, output);
-
-                Toast.makeText(MainActivity.this, ""+output[0], Toast.LENGTH_SHORT).show();
+                TensorFlowLite();
             }
         });
     }
@@ -185,8 +179,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private Interpreter getTfliteInterpreter(String modelPath) {
         try {
             return new Interpreter(loadModelFile(MainActivity.this, modelPath));
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return null;
@@ -234,7 +227,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 //            updateMarker(count, lAccX);
 //        }
 
-        if(event.sensor == gyroSensor && isBtnOn == true){
+        if (event.sensor == gyroSensor && isBtnOn == true) {
             GyroX = event.values[0];
             GyroY = event.values[1];
             GyroZ = event.values[2];
@@ -244,8 +237,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             Gyro[count] = new float[]{GyroX, GyroY, GyroZ};
 //            Log.e("Gyro",""+Gyro[1][1]);
-            if(count>2){
-                dt = SensorTime[count-1]-SensorTime[count-2];
+            if (count > 2) {
+                dt = SensorTime[count - 1] - SensorTime[count - 2];
 //                for(int i=0; i<10; i++){
 //                    Log.d("SensorTime["+i+"]",""+SensorTime[i]);
 //                }
@@ -262,22 +255,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     }
 
-    public void Filtering (){
+    public void Filtering() {
         // angle 단순 계산
-        pitch += (GyroX) * (dt * Math.pow(10,-9));
-        roll += (GyroY) * (dt * Math.pow(10,-9));
-        yaw += (GyroZ) * (dt * Math.pow(10,-9));
+        pitch += (GyroX) * (dt * Math.pow(10, -9));
+        roll += (GyroY) * (dt * Math.pow(10, -9));
+        yaw += (GyroZ) * (dt * Math.pow(10, -9));
 
         // Filtering
         double forceMagnitude = Math.abs(lAccX) + Math.abs(lAccY) + Math.abs(lAccZ);
-        if(forceMagnitude > 4.9 && forceMagnitude < 19.6){
-            float pitchAcc = (float) (Math.atan2(lAccY , lAccZ) * 180 / (Math.PI));
+        if (forceMagnitude > 4.9 && forceMagnitude < 19.6) {
+            float pitchAcc = (float) (Math.atan2(lAccY, lAccZ) * 180 / (Math.PI));
             pitch = (float) (pitch * 0.98 + pitchAcc * 0.02);
 
-            float rollAcc = (float) (Math.atan2(lAccX , lAccZ) * 180 / (Math.PI));
+            float rollAcc = (float) (Math.atan2(lAccX, lAccZ) * 180 / (Math.PI));
             roll = (float) (pitch * 0.98 + rollAcc * 0.02);
 
-            float yawAcc = (float) (Math.atan2(lAccX , lAccY) * 180 / (Math.PI));
+            float yawAcc = (float) (Math.atan2(lAccX, lAccY) * 180 / (Math.PI));
             yaw = (float) (pitch * 0.98 + yawAcc * 0.02);
         }
     }
@@ -342,18 +335,21 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private void checkPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) { // 마시멜로우 버전과 같거나 이상이라면
-            if(checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
                     || checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                if(shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                    Toast.makeText(this, "외부 저장소 사용을 위해 읽기/쓰기 필요", Toast.LENGTH_SHORT).show(); }
+                if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    Toast.makeText(this, "외부 저장소 사용을 위해 읽기/쓰기 필요", Toast.LENGTH_SHORT).show();
+                }
                 requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE}, 2);
                 //마지막 인자는 체크해야될 권한 갯수
-            } else { Toast.makeText(this, "권한 승인되었음", Toast.LENGTH_SHORT).show(); }
+            } else {
+                Toast.makeText(this, "권한 승인되었음", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
     //csv또는 일반 text만들기 내부 메소드
-    private boolean __makeCsvOrTxtFile(String[]... headers){
+    private boolean __makeCsvOrTxtFile(String[]... headers) {
         PrintWriter pw = null;
         StringBuilder sb = null;
         try {
@@ -363,7 +359,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             StringBuffer csvHeader = new StringBuffer("");
             StringBuffer csvData = new StringBuffer("");
-            for(int i=0; i<cellString.length; i++) {
+            for (int i = 0; i < cellString.length; i++) {
                 csvHeader.append(cellString[i]);
                 csvHeader.append(',');
             }
@@ -376,18 +372,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             csvData.append("Started:");
             csvData.append('\n');
 
-            for(int i=0; i<count; i++) {
-                for(int k=0; k<1; k++){
-                    if(count<2) {
+            for (int i = 0; i < count; i++) {
+                for (int k = 0; k < 1; k++) {
+                    if (count < 2) {
                         csvData.append("");
                         csvData.append(',');
-                    }
-                    else {
+                    } else {
                         csvData.append(dt);
                         csvData.append(',');
                     }
                 }
-                for(int j=0; j<3; j++) {
+                for (int j = 0; j < 3; j++) {
                     csvData.append(Gyro[i][j]);
                     csvData.append(',');
                 }
@@ -398,32 +393,47 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         } catch (FileNotFoundException e) {
             e.printStackTrace();
-        } finally{
-            if(pw != null){pw.close();}
-            if(sb != null){sb = null;}
+        } finally {
+            if (pw != null) {
+                pw.close();
+            }
+            if (sb != null) {
+                sb = null;
+            }
         }
         return true;
     }
 
     //화면 캡쳐하기
-    public File ScreenShot(View view){
+    public File ScreenShot(View view) {
         view.setDrawingCacheEnabled(true);  //화면에 뿌릴때 캐시를 사용하게 한다
         Bitmap screenBitmap = view.getDrawingCache();   //캐시를 비트맵으로 변환
-        File file = new File(FilePath,FileSaveTime+"_"+FileSaveTime_ver+"_img.jpg");
+        File file = new File(FilePath, FileSaveTime + "_" + FileSaveTime_ver + "_img.jpg");
         FileOutputStream os = null;
-        try{
+        try {
             os = new FileOutputStream(file);
             screenBitmap.compress(Bitmap.CompressFormat.PNG, 90, os);   //비트맵을 PNG파일로 변환
             os.close();
             FileSaveTime_ver++;
             Toast.makeText(MainActivity.this, "이미지 캡쳐", Toast.LENGTH_SHORT).show();
             lineChart.invalidate();
-        }catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
-            Log.e("IOException", ""+e);
+            Log.e("IOException", "" + e);
             return null;
         }
         view.setDrawingCacheEnabled(false);
         return file;
+    }
+
+    private void TensorFlowLite() {
+//        // converted_model.tflite
+//        float[][] input = new float[140][3];
+//        float[] output = new float[2];
+//
+//        Interpreter tfile = getTfliteInterpreter("converted_model.tflite");
+//        tfile.run(Gyro, output);
+//
+//        Log.e("output", ""+output[0]);
     }
 }
