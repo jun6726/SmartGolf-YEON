@@ -2,11 +2,9 @@ package com.example.smartgolf;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.hardware.Sensor;
@@ -26,15 +24,11 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import com.github.mikephil.charting.charts.LineChart;
@@ -44,9 +38,6 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-
-import org.tensorflow.lite.Interpreter;
-import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
@@ -102,13 +93,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     float[][][] inputGyro = new float[2][140][3];
     float[] outGyro = new float[]{};
 
-    TensorFlowInferenceInterface inferenceInterface;
+    //테스트
+    private static final int N_SAMPLES = 200;
+    private static List<Float> x;
+    private static List<Float> y;
+    private static List<Float> z;
+
+    private float[] results;
+    public TensorFlowClassifier classifier;
+
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        classifier = new TensorFlowClassifier(getApplicationContext());
+        //테스트
+        x = new ArrayList<>();
+        y = new ArrayList<>();
+        z = new ArrayList<>();
 
         tvlXaxis = (TextView) findViewById(R.id.tvlXaxis);
         tvlYaxis = (TextView) findViewById(R.id.tvlYaxis);
@@ -137,8 +142,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 if (isBtnOn == true) {
                     isBtnOn = false;
                     onPause();
-                    pitch = 0; roll = 0; yaw = 0;
-                    AngAccX = 0; AngAccY = 0; AngAccZ = 0;
+                    pitch = 0;
+                    roll = 0;
+                    yaw = 0;
+                    AngAccX = 0;
+                    AngAccY = 0;
+                    AngAccZ = 0;
                 } else if (isBtnOn == false) {
                     isBtnOn = true;
                     onResume();
@@ -163,55 +172,36 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             @Override
             public void onClick(View view) {
                 __makeCsvOrTxtFile();
-                lineChart.invalidate();
-                lineChart.clear();
-                lineDataSet.clear();
-                lineData.clearValues();
-                count = 0;
-                MakeChart(0, 0);
+                clearGraph();
             }
         });
 
         btn_reset.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                lineChart.invalidate();
-                lineChart.clear();
-                lineDataSet.clear();
-                lineData.clearValues();
-                count = 0;
-                inputGyro = new float[][][]{};
-                outGyro = new float[]{};
-                MakeChart(0, 0);
+                clearGraph();
             }
         });
 
         btn_tensor.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                TensorFlowLite();
+//                TensorFlowLite();
+
             }
         });
     }
 
-    private Interpreter getTfliteInterpreter(String modelPath) {
-        try {
-            return new Interpreter(loadModelFile(MainActivity.this, modelPath));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+    public void clearGraph(){
+        lineChart.invalidate();
+        lineChart.clear();
+        lineDataSet.clear();
+        lineData.clearValues();
+        count = 0;
+        inputGyro = new float[][][]{};
+        outGyro = new float[]{};
+        MakeChart(0, 0);
     }
-
-    private MappedByteBuffer loadModelFile(Activity activity, String modelPath) throws IOException {
-        AssetFileDescriptor fileDescriptor = activity.getAssets().openFd(modelPath);
-        FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
-        FileChannel fileChannel = inputStream.getChannel();
-        long startOffset = fileDescriptor.getStartOffset();
-        long declaredLength = fileDescriptor.getDeclaredLength();
-        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
-    }
-
     @Override
     public void onResume() {
         super.onResume();
@@ -250,32 +240,73 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             GyroY = event.values[1];
             GyroZ = event.values[2];
 
+            //테스트
+            activityPrediction();
+            x.add(event.values[0]);
+            y.add(event.values[1]);
+            z.add(event.values[2]);
+
             // nanoTime = 1/1000000
             SensorTime[count] = System.nanoTime();
             Gyro[count] = new float[]{GyroX, GyroY, GyroZ};
 
-            if(count>2){
-                dt = SensorTime[count-1]-SensorTime[count-2];
+            if (count > 2) {
+                dt = SensorTime[count - 1] - SensorTime[count - 2];
                 //#### 잔류각도 고정 필터 준비
-                for(int i = 0 ; i < 2 ; i++){
-                    float temp1 = Gyro[count-1][i];
-                    float temp2 = Gyro[count-2][i];
-                    GGap[count-1][i] = temp1 - temp2;
+                for (int i = 0; i < 2; i++) {
+                    float temp1 = Gyro[count - 1][i];
+                    float temp2 = Gyro[count - 2][i];
+                    GGap[count - 1][i] = temp1 - temp2;
                 }
             }
             Filtering();
             Calculate_Position();
-            if(count == 0){
+            if (count == 0) {
                 Torque[count][0] = 0;
                 Torque[count][1] = 0;
-            }
-            else {
+            } else {
                 Calculate_Force();
             }
 
+            for(int i=0; i<140; i++){
+                for(int j=0; j<3; j++){
+//                    inputGyro[0][i][j] = Gyro[i][j];
+                }
+            }
             count++;
             updateMarker(count, GyroX);
         }
+    }
+
+    //테스트
+    private void activityPrediction() {
+        if (x.size() == 140 && y.size() == 140 && z.size() == 140) {
+            List<Float> data = new ArrayList<>();
+            data.addAll(x);
+            data.addAll(y);
+            data.addAll(z);
+
+            Log.d("be_predictProbabilities","predictProbabilities_ready");
+            results = classifier.predictProbabilities(toFloatArray(data));
+            Log.d("Petting", ""+ results[0]);
+            Log.d("Swing", ""+results[1]);
+            Log.d("af_predictProbabilities","predictProbabilities_complete");
+
+            x.clear();
+            y.clear();
+            z.clear();
+        }
+    }
+
+    //테스트
+    private float[] toFloatArray(List<Float> list) {
+        int i = 0;
+        float[] array = new float[list.size()];
+
+        for (Float f : list) {
+            array[i++] = (f != null ? f : Float.NaN);
+        }
+        return array;
     }
 
     @Override
@@ -283,22 +314,20 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     }
 
-    public void Filtering (){
+    public void Filtering() {
         //#### 잔류 각도 고정,
         //threshold 0.05 ; 의식적으로 가만히 있고자 노력할 때 각속도가 0으로 고정됨.
         //threshold 1 ; 잔류고정각속도가 0인 지점에서 0이 아닌 값이 발생하게 됨. 이는 적분시 치명적 오류야기
-        if(count > 0){
+        if (count > 0) {
 
-            if(Math.abs(GyroX - Gyro[count-1][0]) < 0.05){
-                GyroX = Gyro[count-1][0];
+            if (Math.abs(GyroX - Gyro[count - 1][0]) < 0.05) {
+                GyroX = Gyro[count - 1][0];
                 Gyro[count][0] = GyroX;
-            }
-            else if(Math.abs(GyroX - Gyro[count-1][1]) < 0.05){
-                GyroY = Gyro[count-1][1];
+            } else if (Math.abs(GyroX - Gyro[count - 1][1]) < 0.05) {
+                GyroY = Gyro[count - 1][1];
                 Gyro[count][1] = GyroY;
-            }
-            else if(Math.abs(GyroX - Gyro[count-1][2]) < 0.05){
-                GyroZ = Gyro[count-1][2];
+            } else if (Math.abs(GyroX - Gyro[count - 1][2]) < 0.05) {
+                GyroZ = Gyro[count - 1][2];
                 Gyro[count][2] = GyroZ;
             }
 
@@ -306,28 +335,28 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
 
         //#### angle 단순 계산
-        pitch += (GyroX) * (dt * Math.pow(10,-9));
-        roll += (GyroY) * (dt * Math.pow(10,-9));
-        yaw += (GyroZ) * (dt * Math.pow(10,-9));
-        double DT = dt * Math.pow(10,-9);
+        pitch += (GyroX) * (dt * Math.pow(10, -9));
+        roll += (GyroY) * (dt * Math.pow(10, -9));
+        yaw += (GyroZ) * (dt * Math.pow(10, -9));
+        double DT = dt * Math.pow(10, -9);
 
 
         //###### Complemantary Filtering
         //가속도계로부터 얻은 값을 Arctan 적용하여 2%비율로 반영(by 누군가)
         double forceMagnitude = Math.abs(lAccX) + Math.abs(lAccY) + Math.abs(lAccZ);
-        if(forceMagnitude > 4.9 && forceMagnitude < 19.6){
-            float pitchAcc = (float) (Math.atan2(lAccZ , lAccY) * 180 / (Math.PI));
+        if (forceMagnitude > 4.9 && forceMagnitude < 19.6) {
+            float pitchAcc = (float) (Math.atan2(lAccZ, lAccY) * 180 / (Math.PI));
             pitch = (float) (pitch * 0.98 + pitchAcc * 0.02);
 
-            float rollAcc = (float) (Math.atan2(lAccX , lAccZ) * 180 / (Math.PI));
+            float rollAcc = (float) (Math.atan2(lAccX, lAccZ) * 180 / (Math.PI));
             roll = (float) (pitch * 0.98 + rollAcc * 0.02);
 
-            float yawAcc = (float) (Math.atan2(lAccY , lAccX) * 180 / (Math.PI));
+            float yawAcc = (float) (Math.atan2(lAccY, lAccX) * 180 / (Math.PI));
             yaw = (float) (pitch * 0.98 + yawAcc * 0.02);
         }
     }
 
-    public void Calculate_Position(){
+    public void Calculate_Position() {
         radios = 0.6f; //m 단위, 팔길이 + 골프채 길이(잡고 있을 때)
 
         //####### Roll 에 의한 Theta, pie 계산 모델링
@@ -342,11 +371,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         Pos[count][2] = radios * Math.cos(theta);
     }
 
-    public void Calculate_Force(){
+    public void Calculate_Force() {
         //count가 1이상에서 작동
         //#### 단순 각가속도 계산
-        AngAccX = (Gyro[count][0] - Gyro[count -1][0]) / (dt * Math.pow(10,-9));
-        AngAccZ = (Gyro[count][2] - Gyro[count -1][2]) / (dt * Math.pow(10,-9));
+        AngAccX = (Gyro[count][0] - Gyro[count - 1][0]) / (dt * Math.pow(10, -9));
+        AngAccZ = (Gyro[count][2] - Gyro[count - 1][2]) / (dt * Math.pow(10, -9));
 
         //roll 상황에 따른 pie와 theta 각가속도 변화
         theta_Acc = (AngAccZ * Math.cos(roll) + AngAccX * Math.sin(roll));
@@ -431,17 +460,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     //csv또는 일반 text만들기 내부 메소드
-    private boolean __makeCsvOrTxtFile(String[]... headers){
+    private boolean __makeCsvOrTxtFile(String[]... headers) {
         PrintWriter pw = null;
         StringBuilder sb = null;
         try {
             pw = new PrintWriter(new File(FilePath, "test.csv"));
 
-            String[] cellString = {"Time", "GyroX", "GyroY", "GyroZ","PosX", "PosY", "PosZ","TorPie","TorThe"};
+            String[] cellString = {"Time", "GyroX", "GyroY", "GyroZ", "PosX", "PosY", "PosZ", "TorPie", "TorThe"};
 
             StringBuffer csvHeader = new StringBuffer("");
             StringBuffer csvData = new StringBuffer("");
-            for(int i=0; i<cellString.length; i++) {
+            for (int i = 0; i < cellString.length; i++) {
                 csvHeader.append(cellString[i]);
                 csvHeader.append(',');
             }
@@ -454,33 +483,31 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             csvData.append("Started:");
             csvData.append('\n');
 
-            for(int i=0; i<count; i++) {
-                for(int k=0; k<1; k++){
-                    if(count<2) {
+            for (int i = 0; i < count; i++) {
+                for (int k = 0; k < 1; k++) {
+                    if (count < 2) {
                         csvData.append("");
                         csvData.append(',');
-                    }
-                    else {
+                    } else {
                         csvData.append(dt);
                         csvData.append(',');
                     }
                 }
-                for(int j=0; j<3; j++) {
+                for (int j = 0; j < 3; j++) {
                     csvData.append(Gyro[i][j]);
                     csvData.append(',');
                 }
-                for(int j=0; j<3; j++) {
+                for (int j = 0; j < 3; j++) {
                     csvData.append(Pos[i][j]);
                     csvData.append(',');
                 }
 
-                if(count == 0){
+                if (count == 0) {
                     csvData.append('0');
                     csvData.append(',');
                     csvData.append('0');
                     csvData.append(',');
-                }
-                else {
+                } else {
                     csvData.append(Torque[i][0]);
                     csvData.append(',');
                     csvData.append(Torque[i][1]);
@@ -494,9 +521,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         } catch (FileNotFoundException e) {
             e.printStackTrace();
-        } finally{
-            if(pw != null){pw.close();}
-            if(sb != null){sb = null;}
+        } finally {
+            if (pw != null) {
+                pw.close();
+            }
+            if (sb != null) {
+                sb = null;
+            }
         }
         return true;
     }
