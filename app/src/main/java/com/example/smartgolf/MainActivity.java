@@ -68,6 +68,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     float[][] lAcc = new float[time][3];
     float[][] Gyro = new float[time][3];
+    float[][] GGap = new float[time][3];
+    double[][] Pos = new double[time][3];
+    double[][] Torque = new double[time][2];
     float[] SensorTime = new float[time];
 
     boolean isBtnOn = false;
@@ -80,6 +83,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     float pitch;
     float roll;
     float yaw;
+
+    float radios;
+    double theta;
+    double pie;
+
+    double Moment_Inertia;
+
+    double AngAccX;
+    double AngAccY;
+    double AngAccZ;
+
+    double theta_Acc;
+    double pie_Acc;
 
     File FilePath = new File(Environment.getExternalStorageDirectory() + "/Download");
 
@@ -121,6 +137,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 if (isBtnOn == true) {
                     isBtnOn = false;
                     onPause();
+                    pitch = 0; roll = 0; yaw = 0;
+                    AngAccX = 0; AngAccY = 0; AngAccZ = 0;
                 } else if (isBtnOn == false) {
                     isBtnOn = true;
                     onResume();
@@ -234,16 +252,26 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             // nanoTime = 1/1000000
             SensorTime[count] = System.nanoTime();
-
             Gyro[count] = new float[]{GyroX, GyroY, GyroZ};
-//            Log.e("Gyro",""+Gyro[1][1]);
-            if (count > 2) {
-                dt = SensorTime[count - 1] - SensorTime[count - 2];
-//                for(int i=0; i<10; i++){
-//                    Log.d("SensorTime["+i+"]",""+SensorTime[i]);
-//                }
+
+            if(count>2){
+                dt = SensorTime[count-1]-SensorTime[count-2];
+                //#### 잔류각도 고정 필터 준비
+                for(int i = 0 ; i < 2 ; i++){
+                    float temp1 = Gyro[count-1][i];
+                    float temp2 = Gyro[count-2][i];
+                    GGap[count-1][i] = temp1 - temp2;
+                }
             }
             Filtering();
+            Calculate_Position();
+            if(count == 0){
+                Torque[count][0] = 0;
+                Torque[count][1] = 0;
+            }
+            else {
+                Calculate_Force();
+            }
 
             count++;
             updateMarker(count, GyroX);
@@ -255,26 +283,80 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     }
 
-    public void Filtering() {
-        // angle 단순 계산
-        pitch += (GyroX) * (dt * Math.pow(10, -9));
-        roll += (GyroY) * (dt * Math.pow(10, -9));
-        yaw += (GyroZ) * (dt * Math.pow(10, -9));
+    public void Filtering (){
+        //#### 잔류 각도 고정,
+        //threshold 0.05 ; 의식적으로 가만히 있고자 노력할 때 각속도가 0으로 고정됨.
+        //threshold 1 ; 잔류고정각속도가 0인 지점에서 0이 아닌 값이 발생하게 됨. 이는 적분시 치명적 오류야기
+        if(count > 0){
 
-        // Filtering
+            if(Math.abs(GyroX - Gyro[count-1][0]) < 0.05){
+                GyroX = Gyro[count-1][0];
+                Gyro[count][0] = GyroX;
+            }
+            else if(Math.abs(GyroX - Gyro[count-1][1]) < 0.05){
+                GyroY = Gyro[count-1][1];
+                Gyro[count][1] = GyroY;
+            }
+            else if(Math.abs(GyroX - Gyro[count-1][2]) < 0.05){
+                GyroZ = Gyro[count-1][2];
+                Gyro[count][2] = GyroZ;
+            }
+
+        }
+
+
+        //#### angle 단순 계산
+        pitch += (GyroX) * (dt * Math.pow(10,-9));
+        roll += (GyroY) * (dt * Math.pow(10,-9));
+        yaw += (GyroZ) * (dt * Math.pow(10,-9));
+        double DT = dt * Math.pow(10,-9);
+
+
+        //###### Complemantary Filtering
+        //가속도계로부터 얻은 값을 Arctan 적용하여 2%비율로 반영(by 누군가)
         double forceMagnitude = Math.abs(lAccX) + Math.abs(lAccY) + Math.abs(lAccZ);
-        if (forceMagnitude > 4.9 && forceMagnitude < 19.6) {
-            float pitchAcc = (float) (Math.atan2(lAccY, lAccZ) * 180 / (Math.PI));
+        if(forceMagnitude > 4.9 && forceMagnitude < 19.6){
+            float pitchAcc = (float) (Math.atan2(lAccZ , lAccY) * 180 / (Math.PI));
             pitch = (float) (pitch * 0.98 + pitchAcc * 0.02);
 
-            float rollAcc = (float) (Math.atan2(lAccX, lAccZ) * 180 / (Math.PI));
+            float rollAcc = (float) (Math.atan2(lAccX , lAccZ) * 180 / (Math.PI));
             roll = (float) (pitch * 0.98 + rollAcc * 0.02);
 
-            float yawAcc = (float) (Math.atan2(lAccX, lAccY) * 180 / (Math.PI));
+            float yawAcc = (float) (Math.atan2(lAccY , lAccX) * 180 / (Math.PI));
             yaw = (float) (pitch * 0.98 + yawAcc * 0.02);
         }
     }
 
+    public void Calculate_Position(){
+        radios = 0.6f; //m 단위, 팔길이 + 골프채 길이(잡고 있을 때)
+
+        //####### Roll 에 의한 Theta, pie 계산 모델링
+        //골프 상황에서만 적용됨
+        //roll이 45 dgree일때 theta, pie가 90도가 넘어가는 문제가 있다. 단순 덧셈으로 모델링 할 수 없다.
+        theta = (yaw * Math.cos(roll) + pitch * Math.sin(roll));
+        pie = (pitch * Math.cos(roll) + yaw * Math.sin(roll));
+//        theta = pitch;
+//        pie = yaw;
+        Pos[count][0] = radios * Math.sin(theta) * Math.sin(pie);
+        Pos[count][1] = radios * Math.sin(theta) * Math.cos(pie);
+        Pos[count][2] = radios * Math.cos(theta);
+    }
+
+    public void Calculate_Force(){
+        //count가 1이상에서 작동
+        //#### 단순 각가속도 계산
+        AngAccX = (Gyro[count][0] - Gyro[count -1][0]) / (dt * Math.pow(10,-9));
+        AngAccZ = (Gyro[count][2] - Gyro[count -1][2]) / (dt * Math.pow(10,-9));
+
+        //roll 상황에 따른 pie와 theta 각가속도 변화
+        theta_Acc = (AngAccZ * Math.cos(roll) + AngAccX * Math.sin(roll));
+        pie_Acc = (AngAccX * Math.cos(roll) + AngAccZ * Math.sin(roll));
+
+        //토크 계산
+        Moment_Inertia = 1000;  //m단위 체계, 계산에 의하여.
+        Torque[count][0] = Moment_Inertia * pie_Acc;    //횡회전
+        Torque[count][1] = Moment_Inertia * theta_Acc;
+    }
 
     List<Entry> entries = new ArrayList<>();
 
@@ -349,17 +431,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     //csv또는 일반 text만들기 내부 메소드
-    private boolean __makeCsvOrTxtFile(String[]... headers) {
+    private boolean __makeCsvOrTxtFile(String[]... headers){
         PrintWriter pw = null;
         StringBuilder sb = null;
         try {
             pw = new PrintWriter(new File(FilePath, "test.csv"));
 
-            String[] cellString = {"Time", "AccX", "AccY", "AccZ"};
+            String[] cellString = {"Time", "GyroX", "GyroY", "GyroZ","PosX", "PosY", "PosZ","TorPie","TorThe"};
 
             StringBuffer csvHeader = new StringBuffer("");
             StringBuffer csvData = new StringBuffer("");
-            for (int i = 0; i < cellString.length; i++) {
+            for(int i=0; i<cellString.length; i++) {
                 csvHeader.append(cellString[i]);
                 csvHeader.append(',');
             }
@@ -372,18 +454,36 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             csvData.append("Started:");
             csvData.append('\n');
 
-            for (int i = 0; i < count; i++) {
-                for (int k = 0; k < 1; k++) {
-                    if (count < 2) {
+            for(int i=0; i<count; i++) {
+                for(int k=0; k<1; k++){
+                    if(count<2) {
                         csvData.append("");
                         csvData.append(',');
-                    } else {
+                    }
+                    else {
                         csvData.append(dt);
                         csvData.append(',');
                     }
                 }
-                for (int j = 0; j < 3; j++) {
+                for(int j=0; j<3; j++) {
                     csvData.append(Gyro[i][j]);
+                    csvData.append(',');
+                }
+                for(int j=0; j<3; j++) {
+                    csvData.append(Pos[i][j]);
+                    csvData.append(',');
+                }
+
+                if(count == 0){
+                    csvData.append('0');
+                    csvData.append(',');
+                    csvData.append('0');
+                    csvData.append(',');
+                }
+                else {
+                    csvData.append(Torque[i][0]);
+                    csvData.append(',');
+                    csvData.append(Torque[i][1]);
                     csvData.append(',');
                 }
                 csvData.append('\n');
@@ -391,15 +491,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             pw.write(csvData.toString());
             pw.close();
 
+
         } catch (FileNotFoundException e) {
             e.printStackTrace();
-        } finally {
-            if (pw != null) {
-                pw.close();
-            }
-            if (sb != null) {
-                sb = null;
-            }
+        } finally{
+            if(pw != null){pw.close();}
+            if(sb != null){sb = null;}
         }
         return true;
     }
