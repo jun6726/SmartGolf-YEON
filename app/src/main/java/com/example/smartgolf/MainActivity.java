@@ -464,7 +464,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         PrintWriter pw = null;
         StringBuilder sb = null;
         try {
-            pw = new PrintWriter(new File(FilePath, "test.csv"));
+            pw = new PrintWriter(new File(FilePath, "Golf_" + FileSaveTime_ver + ".csv"));
 
             String[] cellString = {"Time", "GyroX", "GyroY", "GyroZ", "PosX", "PosY", "PosZ", "TorPie", "TorThe"};
 
@@ -516,6 +516,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 csvData.append('\n');
             }
             pw.write(csvData.toString());
+            FileSaveTime_ver++;
+
             pw.close();
 
 
@@ -536,7 +538,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public File ScreenShot(View view) {
         view.setDrawingCacheEnabled(true);  //화면에 뿌릴때 캐시를 사용하게 한다
         Bitmap screenBitmap = view.getDrawingCache();   //캐시를 비트맵으로 변환
-        File file = new File(FilePath, FileSaveTime + "_" + FileSaveTime_ver + "_img.jpg");
+        File file = new File(FilePath,  "Golf_" + FileSaveTime_ver + "_img.jpg");
         FileOutputStream os = null;
         try {
             os = new FileOutputStream(file);
