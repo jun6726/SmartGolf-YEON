@@ -1,66 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    android:orientation="vertical">
+    android:background="@drawable/golfillust"
+    tools:context=".MainActivity">
 
-    <TextView
-        android:id="@+id/tvlXaxis"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="TextView" />
-
-    <TextView
-        android:id="@+id/tvlYaxis"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="TextView" />
-
-    <TextView
-        android:id="@+id/tvlZaxis"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="TextView" />
 
     <Button
-        android:id="@+id/button"
+        android:id="@+id/btn_swing"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:text="스윙 시작" />
+        android:layout_height="120dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/btnround"
+        android:fontFamily="casual"
+        android:padding="10dp"
+        android:text="스윙 시작"
+        android:textSize="50dp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:layout_editor_absoluteX="10dp" />
 
     <Button
         android:id="@+id/btn_reset"
-        android:layout_width="match_parent"
+        android:layout_width="150dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/btnround"
+        android:padding="10dp"
         android:text="그래프 초기화"
-        />
-
-    <Button
-        android:id="@+id/btn_capture"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="이미지 캡쳐" />
+        android:textSize="20dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_swing" />
 
     <Button
         android:id="@+id/btn_excel"
-        android:layout_width="match_parent"
+        android:layout_width="150dp"
         android:layout_height="wrap_content"
-        android:text="엑셀 저장" />
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="30dp"
+        android:background="@drawable/btnround"
+        android:padding="10dp"
+        android:text="엑셀 저장 "
+        android:textSize="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_swing" />
+
+    <Button
+        android:id="@+id/btn_Force"
+        android:layout_width="150dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/btnround"
+        android:padding="10dp"
+        android:text="힘 계산 "
+        android:textSize="20dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_reset" />
 
     <Button
         android:id="@+id/btn_tensor"
-        android:layout_width="match_parent"
+        android:layout_width="150dp"
         android:layout_height="wrap_content"
-        android:text="텐서플로우" />
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="30dp"
+        android:background="@drawable/btnround"
+        android:padding="10dp"
+        android:text=" 텐서플로우"
+        android:textSize="20dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_excel" />
+
 
     <com.github.mikephil.charting.charts.LineChart
         android:id="@+id/chart"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="300dp"
+        android:layout_marginTop="20dp"
+        android:background="@drawable/btnround"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textView"
+        app:layout_constraintVertical_bias="1.0"></com.github.mikephil.charting.charts.LineChart>
 
-    </com.github.mikephil.charting.charts.LineChart>
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="0dp"
+        android:layout_height="80dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="30dp"
+        android:background="@drawable/btnround"
+        android:text="   스윙 데이터 대기중.."
+        android:textSize="24sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_Force" />
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
