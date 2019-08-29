@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private Sensor accelerSensor, linearAccelerSensor, gyroSensor;
     public float lAccX, lAccY, lAccZ;
     public float GyroX, GyroY, GyroZ;
-    Button btn_swing, btn_excel, btn_reset, btn_tensor, btn_Force;
+    Button btn_swing, btn_excel, btn_reset, btn_Force;
     TextView textView;
 
     private LineChart lineChart;
@@ -91,6 +91,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     double AngAccX, AngAccY, AngAccZ;
     double theta_Acc, pie_Acc;
 
+    String puttingRate, swingRate;
+
     File FilePath = new File(Environment.getExternalStorageDirectory() + "/Download");
 
     float[][][] inputGyro = new float[2][140][3];
@@ -111,7 +113,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btn_swing = (Button) findViewById(R.id.btn_swing);
         btn_excel = (Button) findViewById(R.id.btn_excel);
         btn_reset = (Button) findViewById(R.id.btn_reset);
-        btn_tensor = (Button) findViewById(R.id.btn_tensor);
         lineChart = (LineChart) findViewById(R.id.chart);
         btn_Force = (Button) findViewById(R.id.btn_Force);
         textView = (TextView) findViewById(R.id.textView);
@@ -156,13 +157,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             @Override
             public void onClick(View view) {
                 clearGraph();
-            }
-        });
-
-        btn_tensor.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                DialogAnimation();
             }
         });
 
@@ -252,7 +246,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             data.addAll(z);
             results = classifier.predictProbabilities(toFloatArray(data));
 
-            textView.setText("  putting : " + results[0] + "\n  swing : " + results[1]);
+            puttingRate = String.format("%.5f", results[0]);
+            swingRate = String.format("%.5f", results[1]);
+
+            textView.setText("Putting : " + puttingRate + "\n\t Swing : " + swingRate);
 
             if (results[0] > results[1]) {
                 isP_S = false;
@@ -356,7 +353,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         // 횡회전에서 최대 힘과 그 위치
         // 힘 계산 버튼 누르면 해당 value 출력할 것!
-        if (Force[count][0] > MaxFor) {
+        if (Force[count][0] > MaxFor && Force[count][0] < 9999) {
             MaxFor = Force[count][0];
             MaxPos = Pos[count];    //최대힘 위치의 기준은 핸드폰이다. 파이썬 3D plot이 핸드폰 위치를 기준으로 한다. 3D 위치 plot를 Pos_tip으로 바꿀 것.
         }
@@ -566,7 +563,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if (isP_S == false) {
             Glide.with(this).load(R.drawable.putting).into(gifImage);
         }
-
+        isBtnOn = false;
         dialog.show();
     }
 }

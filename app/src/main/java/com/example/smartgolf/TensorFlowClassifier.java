@@ -10,7 +10,7 @@ public class TensorFlowClassifier {
     }
 
     private TensorFlowInferenceInterface inferenceInterface;
-    private static final String MODEL_FILE = "file:///android_asset/frozen_har1.pb";
+    private static final String MODEL_FILE = "file:///android_asset/frozen_har2.pb";
     private static final String INPUT_NODE = "input";
     private static final String[] OUTPUT_NODES = {"y_"};
     private static final String OUTPUT_NODE = "y_";
