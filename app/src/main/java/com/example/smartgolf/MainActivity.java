@@ -58,9 +58,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     TextView textView;
 
     private LineChart lineChart;
-    LineDataSet lineDataSet;
+    LineDataSet lineDataSetX, lineDataSetY, lineDataSetZ;
     LineData lineData;
-
+    ArrayList<Entry> GyroXList = new ArrayList<>();
+    ArrayList<Entry> GyroYList = new ArrayList<>();
+    ArrayList<Entry> GyroZList = new ArrayList<>();
+    
     public int count;
     private int time = 5000;
 
@@ -70,9 +73,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     double[][] Torque = new double[time][2];
     double[][] Force = new double[time][2];
 
+    double MaxFor = 0;
+    double MaxPos[] = new double[3];
+
     float[] SensorTime = new float[time];
 
-    boolean isBtnOn = false;
+    boolean isBtnOn = false, isP_S = false; // isP_S false는 퍼팅, true는 스윙
     float FileSaveTime = System.currentTimeMillis() * 1000;
 
     int FileSaveTime_ver = 0;
@@ -90,12 +96,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     float[][][] inputGyro = new float[2][140][3];
     float[] outGyro = new float[]{};
 
-    private static List<Float> x,y,z;
+    private static List<Float> x, y, z;
 
     private float[] results;
     public TensorFlowClassifier classifier;
 
-    public Boolean P_S;
 //    public DataFilter_Cal dataFilter_cal;
 
     @Override
@@ -157,14 +162,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         btn_tensor.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                DialogAnimation(P_S);
+                DialogAnimation();
             }
         });
 
         btn_Force.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Toast.makeText(MainActivity.this, "힘 계산 완료 : " + Force[50][0], Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "가장 큰 힘 : " + MaxFor + "\n가장 큰 힘의 위치 X: "+ MaxPos[0]+ " Y : " + MaxPos[1] + " Z : " +MaxPos[2], Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -206,9 +211,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             GyroZ = event.values[2];
 
             activityPrediction();
-            x.add(event.values[0]);
-            y.add(event.values[1]);
-            z.add(event.values[2]);
+
+            x.add(GyroX);
+            y.add(GyroY);
+            z.add(GyroZ);
 
             // nanoTime = 1/1000000
             SensorTime[count] = System.nanoTime();
@@ -233,7 +239,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }
 
             count++;
-            updateMarker(count, GyroX);
+            updateMarker(count, GyroX, GyroY, GyroZ);
         }
     }
 
@@ -246,11 +252,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             data.addAll(z);
             results = classifier.predictProbabilities(toFloatArray(data));
 
-            textView.setText("  putting : "+results[0]+ "\n  swing : "+results[1]);
+            textView.setText("  putting : " + results[0] + "\n  swing : " + results[1]);
 
-            if(results[0]>results[1]){P_S = false;}
-            else if(results[0]<results[1]){P_S = true;}
-
+            if (results[0] > results[1]) {
+                isP_S = false;
+            } else if (results[0] < results[1]) {
+                isP_S = true;
+            }
             x.clear();
             y.clear();
             z.clear();
@@ -344,13 +352,25 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         totalRadios = (radios + 0.93);  //7번 club 기준, MKS 단위계 기준
         Force[count][0] = Torque[count][0] / totalRadios;    //횡회전
         Force[count][1] = Torque[count][1] / totalRadios;
+
+        // 횡회전에서 최대 힘과 그 위치
+        // 힘 계산 버튼 누르면 해당 value 출력할 것!
+        if (Force[count][0] > MaxFor) {
+            MaxFor = Force[count][0];
+            MaxPos = Pos[count];    //최대힘 위치의 기준은 핸드폰이다. 파이썬 3D plot이 핸드폰 위치를 기준으로 한다. 3D 위치 plot를 Pos_tip으로 바꿀 것.
+        }
     }
 
-    public void clearGraph(){
+    public void clearGraph() {
         lineChart.invalidate();
         lineChart.clear();
-        lineDataSet.clear();
+        lineDataSetX.clear();
+        lineDataSetY.clear();
+        lineDataSetZ.clear();
         lineData.clearValues();
+        x.clear();
+        y.clear();
+        z.clear();
         pitch = 0;
         roll = 0;
         yaw = 0;
@@ -364,24 +384,51 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         MakeChart(0, 0);
     }
 
-    List<Entry> entries = new ArrayList<>();
-
     public void MakeChart(float xValue, float yValue) {
-        entries.add(new Entry(xValue, yValue));
+        GyroXList.add(new Entry(xValue, yValue));
+        GyroYList.add(new Entry(xValue, yValue));
+        GyroZList.add(new Entry(xValue, yValue));
 
-        lineDataSet = new LineDataSet(entries, "GyroX");
-        lineDataSet.setLineWidth(1);
-        lineDataSet.setCircleRadius(2);
-        lineDataSet.setCircleColor(Color.BLACK);
-        lineDataSet.setCircleColorHole(Color.BLACK);
-        lineDataSet.setColor(Color.BLACK);
-        lineDataSet.setDrawCircleHole(true);
-        lineDataSet.setDrawCircles(true);
-        lineDataSet.setDrawHorizontalHighlightIndicator(false);
-        lineDataSet.setDrawHighlightIndicators(false);
-        lineDataSet.setDrawValues(true);
+        // X축 데이터
+        lineDataSetX = new LineDataSet(GyroXList, "GyroX");
+        lineDataSetX.setLineWidth(1);
+        lineDataSetX.setCircleRadius(2);
+        lineDataSetX.setCircleColor(Color.BLACK);
+        lineDataSetX.setCircleColorHole(Color.BLACK);
+        lineDataSetX.setColor(Color.BLACK);
+        lineDataSetX.setDrawCircleHole(true);
+        lineDataSetX.setDrawCircles(true);
+        lineDataSetX.setDrawHorizontalHighlightIndicator(false);
+        lineDataSetX.setDrawHighlightIndicators(false);
+        lineDataSetX.setDrawValues(true);
 
-        lineData = new LineData(lineDataSet);
+        // X축 데이터
+        lineDataSetY = new LineDataSet(GyroYList, "GyroY");
+        lineDataSetY.setLineWidth(1);
+        lineDataSetY.setCircleRadius(2);
+        lineDataSetY.setCircleColor(Color.BLUE);
+        lineDataSetY.setCircleColorHole(Color.BLUE);
+        lineDataSetY.setColor(Color.BLUE);
+        lineDataSetY.setDrawCircleHole(true);
+        lineDataSetY.setDrawCircles(true);
+        lineDataSetY.setDrawHorizontalHighlightIndicator(false);
+        lineDataSetY.setDrawHighlightIndicators(false);
+        lineDataSetY.setDrawValues(true);
+
+        // X축 데이터
+        lineDataSetZ = new LineDataSet(GyroZList, "GyroZ");
+        lineDataSetZ.setLineWidth(1);
+        lineDataSetZ.setCircleRadius(2);
+        lineDataSetZ.setCircleColor(Color.RED);
+        lineDataSetZ.setCircleColorHole(Color.RED);
+        lineDataSetZ.setColor(Color.RED);
+        lineDataSetZ.setDrawCircleHole(true);
+        lineDataSetZ.setDrawCircles(true);
+        lineDataSetZ.setDrawHorizontalHighlightIndicator(false);
+        lineDataSetZ.setDrawHighlightIndicators(false);
+        lineDataSetZ.setDrawValues(true);
+
+        lineData = new LineData(lineDataSetX, lineDataSetY, lineDataSetZ);
         lineChart.setData(lineData);
 
         XAxis xAxis = lineChart.getXAxis();
@@ -407,10 +454,21 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         marker.setChartView(lineChart);
         lineChart.setMarker(marker);
     }
+    
+    
+    private void updateMarker(float addXValue, float addGyroX, float addGyroY, float addGyroZ) {
+        lineDataSetX = (LineDataSet) lineChart.getData().getDataSetByIndex(0);
+        lineDataSetY = (LineDataSet) lineChart.getData().getDataSetByIndex(1);
+        lineDataSetZ = (LineDataSet) lineChart.getData().getDataSetByIndex(2);
 
-    private void updateMarker(float addXValue, float addYValue) {
-        LineData lineData = lineChart.getData();
-        lineData.addEntry(new Entry(addXValue, addYValue), 0);
+        GyroXList.add(new Entry(addXValue, addGyroX));
+        GyroYList.add(new Entry(addXValue, addGyroY));
+        GyroZList.add(new Entry(addXValue, addGyroZ));
+
+        lineDataSetX.setValues(GyroXList);
+        lineDataSetY.setValues(GyroYList);
+        lineDataSetZ.setValues(GyroZList);
+
         lineData.notifyDataChanged();
 
         lineChart.notifyDataSetChanged();
@@ -479,32 +537,35 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             pw.write(csvData.toString());
             FileSaveTime_ver++;
             pw.close();
-        } catch (FileNotFoundException e) { e.printStackTrace();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
         } finally {
-            if (pw != null) { pw.close(); }
-            if (sb != null) { sb = null; }
+            if (pw != null) {
+                pw.close();
+            }
+            if (sb != null) {
+                sb = null;
+            }
         }
         return true;
     }
 
     // 다이어로그
-    public void DialogAnimation(Boolean P_S){
+    public void DialogAnimation() {
         Dialog dialog = new Dialog(MainActivity.this);
         dialog.setContentView(R.layout.custom_dialog);
 
         ImageView image = (ImageView) dialog.findViewById(R.id.gif_image);
         TextView textView2 = (TextView) dialog.findViewById(R.id.textView2);
-
         GlideDrawableImageViewTarget gifImage = new GlideDrawableImageViewTarget(image);
 
-        if(P_S == false) {
-            Glide.with(this).load(R.drawable.putting).into(gifImage);
-            textView2.setText("퍼팅입니다~");
-        }
-        else if(P_S == true) {
+        if (isP_S) {
             Glide.with(this).load(R.drawable.swing).into(gifImage);
-            textView2.setText("스윙입니다~");
         }
+        if (isP_S == false) {
+            Glide.with(this).load(R.drawable.putting).into(gifImage);
+        }
+
         dialog.show();
     }
 }
