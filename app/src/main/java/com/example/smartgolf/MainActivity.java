@@ -259,6 +259,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             } else if (results[0] < results[1]) {
                 isP_S = true;
             }
+            DialogAnimation();
             x.clear();
             y.clear();
             z.clear();
