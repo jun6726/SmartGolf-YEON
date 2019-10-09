@@ -1,2 +1,2 @@
-model_checkpoint_path: "har1.ckpt"
-all_model_checkpoint_paths: "har1.ckpt"
+model_checkpoint_path: "har2.ckpt"
+all_model_checkpoint_paths: "har2.ckpt"
